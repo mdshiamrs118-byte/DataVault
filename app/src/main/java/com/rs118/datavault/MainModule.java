@@ -1,6 +1,9 @@
 package com.rs118.datavault;
 
 import android.app.Activity;
+import android.content.res.Configuration;
+import android.view.View;
+import android.widget.FrameLayout;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -20,14 +23,12 @@ public class MainModule implements IXposedHookLoadPackage {
         if (!lp.isFirstApplication) return;
         if (lp.packageName.equals("android") || lp.packageName.equals("com.rs118.datavault")) return;
 
-        // 1) Run a queued "load backup" / "clean backup" before the app touches its own files.
         try {
             startupMessage = ProcessControl.vaultFor(lp.appInfo).runPendingIfAny();
         } catch (Throwable t) {
             XposedBridge.log("[DataVault] pending operation failed: " + t);
         }
 
-        // 2) Put the floating button into every activity of the app.
         try {
             XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
                 @Override
@@ -40,7 +41,29 @@ public class MainModule implements IXposedHookLoadPackage {
                 }
             });
         } catch (Throwable t) {
-            XposedBridge.log("[DataVault] hook failed: " + t);
+            XposedBridge.log("[DataVault] onResume hook failed: " + t);
+        }
+
+        // Re-clamp the FAB when the activity rotates / resizes.
+        try {
+            XposedHelpers.findAndHookMethod(Activity.class, "onConfigurationChanged",
+                    Configuration.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            try {
+                                Activity a = (Activity) param.thisObject;
+                                if (a.getWindow() == null) return;
+                                View decor = a.getWindow().getDecorView();
+                                if (!(decor instanceof FrameLayout)) return;
+                                View fab = decor.findViewWithTag("datavault_fab");
+                                if (fab instanceof FabView) {
+                                    Fab.clampIntoView((FabView) fab, (FrameLayout) decor);
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    });
+        } catch (Throwable t) {
+            XposedBridge.log("[DataVault] onConfigurationChanged hook failed: " + t);
         }
     }
 }

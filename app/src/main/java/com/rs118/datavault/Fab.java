@@ -13,7 +13,7 @@ final class Fab {
     private Fab() {}
 
     private static final String TAG = "datavault_fab";
-    private static float savedX, savedY; // remembered while dragging between activities
+    private static float savedX, savedY;
 
     static void attach(final Activity a) {
         if (a.isFinishing() || a.getWindow() == null) return;
@@ -21,7 +21,7 @@ final class Fab {
 
         View decor = a.getWindow().getDecorView();
         if (!(decor instanceof FrameLayout)) return;
-        FrameLayout host = (FrameLayout) decor;
+        final FrameLayout host = (FrameLayout) decor;
 
         String m = MainModule.startupMessage;
         if (m != null) {
@@ -29,7 +29,11 @@ final class Fab {
             Toast.makeText(a, m, Toast.LENGTH_LONG).show();
         }
 
-        if (host.findViewWithTag(TAG) != null) return;
+        if (host.findViewWithTag(TAG) != null) {
+            // Already attached for this activity — just re-clamp in case of rotation.
+            clampIntoView((FabView) host.findViewWithTag(TAG), host);
+            return;
+        }
 
         final FabView fab = new FabView(a);
         fab.setTag(TAG);
@@ -37,11 +41,13 @@ final class Fab {
         fab.setElevation(Ui.dp(a, 6));
         int size = Ui.dp(a, 48);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size,
-                android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL);
+                android.view.Gravity.TOP | android.view.Gravity.START);
+        lp.leftMargin = Ui.dp(a, 16);
         lp.topMargin = Ui.dp(a, 32);
         host.addView(fab, lp);
         fab.setTranslationX(savedX);
         fab.setTranslationY(savedY);
+        clampIntoView(fab, host);
 
         final int slop = ViewConfiguration.get(a).getScaledTouchSlop();
         fab.setOnTouchListener(new View.OnTouchListener() {
@@ -72,6 +78,7 @@ final class Fab {
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (dragging) {
+                            clampIntoView((FabView) v, host);
                             savedX = v.getTranslationX();
                             savedY = v.getTranslationY();
                         } else {
@@ -83,5 +90,37 @@ final class Fab {
                 }
             }
         });
+
+        // Re-clamp whenever the window size changes (rotation, multi-window, fold).
+        host.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int l, int t, int r, int b,
+                                       int ol, int ot, int or, int ob) {
+                if (r - l != or - ol || b - t != ob - ot) {
+                    clampIntoView(fab, host);
+                }
+            }
+        });
+    }
+
+    /** Keep the button fully inside the host view; pull it back if it drifted off-screen. */
+    private static void clampIntoView(FabView fab, FrameLayout host) {
+        int hw = host.getWidth(), hh = host.getHeight();
+        if (hw == 0 || hh == 0) return;
+        float x = fab.getTranslationX();
+        float y = fab.getTranslationY();
+        float left = fab.getLeft() + x;
+        float top  = fab.getTop()  + y;
+        float right = left + fab.getWidth();
+        float bottom = top + fab.getHeight();
+        float dx = 0, dy = 0;
+        if (left < 0) dx = -left;
+        else if (right > hw) dx = hw - right;
+        if (top < 0) dy = -top;
+        else if (bottom > hh) dy = hh - bottom;
+        if (dx != 0 || dy != 0) {
+            fab.setTranslationX(x + dx);
+            fab.setTranslationY(y + dy);
+        }
     }
 }
