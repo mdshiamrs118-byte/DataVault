@@ -104,7 +104,7 @@ final class Fab {
     }
 
     /** Keep the button fully inside the host view; pull it back if it drifted off-screen. */
-    private static void clampIntoView(FabView fab, FrameLayout host) {
+    static void clampIntoView(FabView fab, FrameLayout host) {
         int hw = host.getWidth(), hh = host.getHeight();
         if (hw == 0 || hh == 0) return;
         float x = fab.getTranslationX();
