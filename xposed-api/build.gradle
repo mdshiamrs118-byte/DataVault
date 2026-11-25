@@ -1,0 +1,16 @@
+// Compile-time stubs of the legacy Xposed API. The real classes are provided by
+// LSPosed / LSPatch at runtime, so this module is used as compileOnly and is
+// never packaged into the module APK.
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'de.robv.android.xposed.stub'
+    compileSdk 34
+    defaultConfig { minSdk 27 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
